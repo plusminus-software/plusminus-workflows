@@ -46,3 +46,56 @@ are all required.
    early if that exact version is already on Central.
 4. **Builds, deploys, tags** the released versions (unless `create-git-tag: false`) and
    publishes a job summary.
+
+## `claude.yml`
+
+Answers a `@claude` mention in an issue or a pull request comment, and reviews a pull request
+when it is opened. Pull requests from forks are not reviewed, because they get no secrets.
+
+### Usage
+
+```yaml
+name: Claude
+
+on:
+  pull_request:
+    types: [opened]
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+
+jobs:
+  claude:
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+      actions: read
+    uses: plusminus-software/plusminus-workflows/.github/workflows/claude.yml@main
+    secrets:
+      token: ${{ secrets.<name of your secret> }}
+```
+
+The `permissions` block is required: a reusable workflow cannot have more permissions than the
+job that calls it.
+
+GitHub runs a comment-triggered workflow from the default branch, so the calling workflow does
+nothing until it is on `main`.
+
+### Inputs
+
+| Input | Default | Description |
+|---|---|---|
+| `model` | `claude-opus-5` | Model used for answers and reviews |
+
+### Secrets
+
+`token` is required: a Claude Code OAuth token created with `claude setup-token`. Runs are paid
+for by the Claude subscription that produced the token. The calling repository chooses the name
+of its own secret and maps it to `token`.
+
+### Requirements
+
+The Claude GitHub app must be installed on the calling repository.

@@ -1,0 +1,85 @@
+name: Claude
+
+# Answers a `@claude` mention in an issue or a pull request comment, and reviews a pull request
+# when it is opened. The triggers and the permissions are set by the calling workflow; a called
+# workflow sees the caller's event and cannot have more permissions than the calling job.
+on:
+  workflow_call:
+    inputs:
+      model:
+        required: false
+        type: string
+        default: claude-opus-5
+    secrets:
+      token:
+        required: true
+
+concurrency:
+  group: claude-${{ github.repository }}-${{ github.event.issue.number || github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  claude:
+    # Cheap gate: without it every comment in the repository would start a runner.
+    if: github.event_name != 'pull_request' && contains(github.event.comment.body, '@claude')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+      actions: read
+
+    steps:
+      # Full history: a comment event checks out the default branch, and without the commits
+      # behind it Claude cannot diff the pull request it was asked about.
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Claude
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.token }}
+          claude_args: --model ${{ inputs.model }}
+
+  review:
+    # A pull request from a fork gets no secrets, so there is no token to review it with.
+    if: >-
+      github.event_name == 'pull_request'
+      && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # A review only reads the code and writes comments, so it does not get `contents: write`.
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
+      actions: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Review
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.token }}
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+
+            Review this pull request. If the repository has a CLAUDE.md, read it first and hold
+            the change to its rules. Look for bugs, security problems and missing tests; skip
+            style that the linters already enforce. Report only what you are confident about.
+
+            Put a finding on its line with `mcp__github_inline_comment__create_inline_comment`,
+            and finish with one `gh pr comment` that gives the verdict in a few short lines.
+            If there is nothing to fix, say so in that comment.
+          claude_args: |
+            --model ${{ inputs.model }}
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)"
