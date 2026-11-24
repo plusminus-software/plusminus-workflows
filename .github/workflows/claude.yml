@@ -88,8 +88,8 @@ jobs:
             `mcp__github_inline_comment__create_inline_comment`, of two or three sentences: what is
             wrong, why it matters, how to fix it (a suggestion block if the fix is small).
 
-            Finish with one `gh pr comment` of at most three short lines: "No blockers." or one
-            line per finding. No summary of the change and no list of what you checked.
+            Finish with one `gh pr comment` that gives the verdict in a few short lines.
+            If there is nothing to fix, say so in that comment.
           claude_args: |
             --model ${{ inputs.model }}
             --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)"
